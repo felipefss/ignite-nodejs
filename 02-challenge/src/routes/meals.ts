@@ -84,4 +84,52 @@ export async function mealRoutes(app: FastifyInstance) {
 
     return await reply.status(201).send();
   });
+
+  app.delete('/:id', async (request, reply) => {
+    const getParamsSchema = z.object({
+      id: z.string().uuid()
+    });
+
+    const { id } = getParamsSchema.parse(request.params);
+    const { sessionId } = request.cookies;
+
+    await knex('meals')
+      .where({
+        session_id: sessionId,
+        id
+      })
+      .delete();
+
+    return await reply.status(204).send();
+  });
+
+  app.get('/summary', async (request) => {
+    const { sessionId } = request.cookies;
+
+    const meals = await knex('meals')
+      .where('session_id', sessionId)
+      .orderBy('created_at')
+      .select();
+
+    const totalMealsInDiet = meals.filter((meal) =>
+      Boolean(meal.in_diet)
+    ).length;
+    const totalMeals = meals.length;
+
+    const bestStreak = meals.reduce((sum, meal) => {
+      // eslint-disable-next-line no-extra-boolean-cast
+      if (!Boolean(meal.in_diet)) {
+        return 0;
+      }
+
+      return sum + 1;
+    }, 0);
+
+    return {
+      total: totalMeals,
+      inDiet: totalMealsInDiet,
+      offDiet: totalMeals - totalMealsInDiet,
+      bestStreak
+    };
+  });
 }
